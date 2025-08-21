@@ -1,3 +1,4 @@
-- Tailwind v4 is in use (@tailwindcss/postcss, @tailwindcss/node).
 - Do NOT add eslint-plugin-tailwindcss (v3-only; conflicts with TW v4).
-- Use @supabase/ssr helpers for Next.js App Router.
+- Tailwind v4 (no eslint-plugin-tailwindcss).
+- Use @supabase/ssr with async cookies() (Next 15).
+- Await params in dynamic routes where needed.
