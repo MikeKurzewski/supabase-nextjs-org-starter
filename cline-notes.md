@@ -1,0 +1,3 @@
+- Tailwind v4 is in use (@tailwindcss/postcss, @tailwindcss/node).
+- Do NOT add eslint-plugin-tailwindcss (v3-only; conflicts with TW v4).
+- Use @supabase/ssr helpers for Next.js App Router.

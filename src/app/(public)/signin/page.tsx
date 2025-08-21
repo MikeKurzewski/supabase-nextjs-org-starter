@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -15,19 +15,19 @@ import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
 
 /**
- * /signin page: shadcn/ui Tabs with Sign in / Sign up forms (react-hook-form + zod)
- * On success, redirects to /app. Shows global toasts for feedback.
+ * /signin page with shadcn Tabs (Sign in / Sign up).
+ * Now preserves ?next=/join/<token> and redirects there after auth.
  */
 
 const schema = z.object({
   email: z.string().email(),
   password: z.string().min(6, "Password must be at least 6 characters"),
 });
-
 type FormValues = z.infer<typeof schema>;
 
 export default function SignInPage() {
   const router = useRouter();
+  const search = useSearchParams();
   const [tab, setTab] = useState<"signin" | "signup">("signin");
   const [loading, setLoading] = useState(false);
 
@@ -36,9 +36,26 @@ export default function SignInPage() {
     handleSubmit,
     formState: { errors },
     reset,
-  } = useForm<FormValues>({
-    resolver: zodResolver(schema),
-  });
+  } = useForm<FormValues>({ resolver: zodResolver(schema) });
+
+  // Remember ?next=... so we can send the user back after login / email callback
+  useEffect(() => {
+    const next = search.get("next");
+    if (next) localStorage.setItem("next-dest", next);
+  }, [search]);
+
+  // If user already authenticated (e.g., returned via magic link), bounce to next/app
+  useEffect(() => {
+    (async () => {
+      const supabase = createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const dest = localStorage.getItem("next-dest") || "/app";
+        localStorage.removeItem("next-dest");
+        router.replace(dest);
+      }
+    })();
+  }, [router]);
 
   async function onSignIn(data: FormValues) {
     setLoading(true);
@@ -53,19 +70,26 @@ export default function SignInPage() {
       toast.error(error.message || "Sign in failed");
     } else {
       toast.success("Signed in!");
-      router.push("/app");
+      const dest = localStorage.getItem("next-dest") || "/app";
+      localStorage.removeItem("next-dest");
+      router.replace(dest);
     }
   }
 
   async function onSignUp(data: FormValues) {
     setLoading(true);
     const supabase = createClient();
+
+    // Build email redirect so confirmation returns to /signin and then to ?next (if any)
+    const desiredDest = localStorage.getItem("next-dest") || "/app";
+    const emailRedirectTo = `${window.location.origin}/signin?next=${encodeURIComponent(
+      desiredDest
+    )}`;
+
     const { error } = await supabase.auth.signUp({
       email: data.email,
       password: data.password,
-      options: {
-        emailRedirectTo: `${window.location.origin}/app`,
-      },
+      options: { emailRedirectTo },
     });
     setLoading(false);
 
@@ -95,6 +119,7 @@ export default function SignInPage() {
               <TabsTrigger value="signin">Sign in</TabsTrigger>
               <TabsTrigger value="signup">Sign up</TabsTrigger>
             </TabsList>
+
             <TabsContent value="signin">
               <form onSubmit={handleSubmit(onSignIn)} className="space-y-4">
                 <div>
@@ -112,6 +137,7 @@ export default function SignInPage() {
                 </Button>
               </form>
             </TabsContent>
+
             <TabsContent value="signup">
               <form onSubmit={handleSubmit(onSignUp)} className="space-y-4">
                 <div>
